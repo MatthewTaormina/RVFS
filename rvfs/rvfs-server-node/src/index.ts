@@ -1,1 +1,5 @@
-export {};
+export { createServer } from './server.js'
+export type { RvfsServerConfig } from './server.js'
+export { MemoryStorageBackend } from './storage/memory.js'
+export { RvfsError } from './errors.js'
+export { checkPermission } from './permissions.js'

@@ -9,6 +9,9 @@
     "test": "vitest run",
     "clean": "rimraf dist"
   },
+  "dependencies": {
+    "rvfs-types": "workspace:*"
+  },
   "peerDependencies": {
     "better-sqlite3": "^11.0.0"
   },

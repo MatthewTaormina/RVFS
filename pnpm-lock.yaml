@@ -9,6 +9,10 @@ importers:
   .: {}
 
   rvfs/rvfs-client-node:
+    dependencies:
+      rvfs-types:
+        specifier: workspace:*
+        version: link:../rvfs-types
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.13
@@ -34,6 +38,9 @@ importers:
       fastify:
         specifier: ^4.0.0
         version: 4.29.1
+      rvfs-types:
+        specifier: workspace:*
+        version: link:../rvfs-types
       zod:
         specifier: ^3.0.0
         version: 3.25.76

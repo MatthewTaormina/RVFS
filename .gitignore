@@ -41,6 +41,12 @@ htmlcov/
 *.key
 *.crt
 
+# ── MCP server data (SQLite — local only, never committed) ────────────────────
+.mcp-data/
+*.db
+*.db-wal
+*.db-shm
+
 # ── Git worktrees ─────────────────────────────────────────────────────────────
 # .worktrees/ holds checked-out branches for parallel agent work.
 # These are local-only — never committed.

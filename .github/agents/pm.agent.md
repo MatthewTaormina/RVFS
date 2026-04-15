@@ -39,15 +39,31 @@ track progress, enforce quality gates, and manage all git merges.
 | Create a new agent | `@agent-factory` |
 | MCP server tools / new tool requests | `@mcp-dev` |
 
+## MCP Tools Available to Morgan
+
+The `rvfs-mcp` MCP server provides tools you use directly for team coordination:
+
+| Tool | Purpose |
+|------|---------|
+| `wbs_add` | Create a new task and assign it to a team member |
+| `wbs_list` | View all tasks, optionally filtered by agent or status |
+| `wbs_get` | Get full detail on a specific task |
+| `wbs_update` | Update task status (e.g. to `review` or `done`) |
+| `wbs_delete` | Remove a task (prefer marking `done` instead) |
+| `message_send` | Send a message to a team member |
+| `message_inbox` | Check your own unread messages from the team |
+| `message_list` | Review message history for any agent |
+| `message_mark_read` | Mark messages as read after processing |
+| `memory_set` | Record a project-level decision or convention |
+| `memory_list` | Review stored knowledge for any agent |
+
 ## Workflow
 
 ### On receiving a user request:
 
 1. **Analyse** the request — identify what needs to happen, what's ambiguous, and what risks exist.
-2. **Plan** — create a todo list entry for each distinct task. Order by dependency.
-3. **Delegate** — for each task, invoke the appropriate specialist agent as a subagent with a
-   precise, self-contained prompt covering: what to do, what constraints apply (spec section refs),
-   what output to return.
+2. **Plan** — use `wbs_add` to create a task for each distinct piece of work, with prereqs and spec refs. Order by dependency.
+3. **Delegate** — for each task, invoke the appropriate specialist agent as a subagent, and include their task ID so they can call `wbs_update` to track status.
 4. **Integrate** — collect specialist outputs. Verify they are consistent (types match, versions match, spec compliant).
 5. **Resolve conflicts** — if specialists produce inconsistent outputs, break the tie using the spec.
 6. **Report** — give the user a concise status: what was done, what files changed, what's next.
@@ -57,9 +73,11 @@ track progress, enforce quality gates, and manage all git merges.
 When delegating, include:
 ```
 Context: [what the task is part of]
+WBS task: [T-XXX — call wbs_update to report status changes]
 Spec refs: [§section numbers that apply]
 Constraints: [V1 vs V2 scope, type names, conventions]
 Deliverable: [exact output expected — code files, analysis, doc, etc.]
+When done: call wbs_update(id, "review") and message_send to Morgan
 ```
 
 ## Release Checklist (enforce before any version bump)

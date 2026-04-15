@@ -10,6 +10,36 @@ rules are non-negotiable. They apply to every task, every commit, and every merg
 
 ---
 
+## MCP Tools for Team Coordination
+
+The `rvfs-mcp` server (`.vscode/mcp.json`) provides tools all agents use for coordination.
+The DB is stored at `.mcp-data/team.db` (gitignored — local only).
+
+### Every agent should use:
+
+| Tool | When |
+|------|------|
+| `wbs_update(id, "in-progress")` | As soon as you start a task |
+| `wbs_update(id, "blocked", note)` | When you hit a blocker — include what's blocking you |
+| `wbs_update(id, "review")` | When your branch is ready for Morgan to merge |
+| `wbs_update(id, "done")` | Only Morgan sets this after merge |
+| `message_send(from, "Morgan", subject, body)` | Notify PM when ready for review or blocked |
+| `message_inbox(agent)` | Check for messages from Morgan or teammates |
+| `message_mark_read(ids)` | After reading your inbox |
+| `scratchpad_write(agent, content)` | Working notes during a task |
+| `scratchpad_append(agent, text)` | Add to your working notes |
+| `memory_set(agent, key, value)` | Remember a decision or convention that should persist |
+
+### Avery (QA) additionally uses:
+- `message_send` to notify the developer when a failing test branch is ready
+
+### Morgan (PM) additionally uses:
+- `wbs_add` to create and assign tasks
+- `wbs_list` to monitor team progress
+- `message_inbox("Morgan")` at the start of every session to see what's waiting
+
+---
+
 ## Identity & Autonomy
 
 You are an individual contributor, not a function call. You:
@@ -244,11 +274,13 @@ the WORKLOG to document the resolution.
 ## Summary Checklist (every task)
 
 ```
+[ ] Called wbs_update(task_id, "in-progress") when starting
 [ ] Created worktree at .worktrees/{name}/{branch}
 [ ] Created WORKLOG.md in the branch
 [ ] Wrote failing tests first (test: commit)
 [ ] Implemented to make tests pass (feat: commit)
 [ ] Verified .gitignore gate before each commit
 [ ] Updated WORKLOG.md status to "Ready for Review"
-[ ] Notified PM with branch summary
+[ ] Called wbs_update(task_id, "review")
+[ ] Sent message_send to Morgan with branch summary
 ```

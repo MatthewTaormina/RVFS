@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type {
   IRvfsClient, RvfsClientConfig, WriteOptions, CacheStats, SyncResult,
   PendingWrite, RvfsClientEvent, RvfsEvent, RvfsChangeEvent,
@@ -146,10 +147,10 @@ export class SystemRvfsClient implements IRvfsClient {
   // ── stat (internal — can return any node type) ────────────────────────────────
   private async statRaw(path: string, fsid?: string): Promise<MetaNode> {
     const targetFsid = fsid ?? this.fsid
-    const node = await this.http.get<MetaNode>(
-      `/fs/${targetFsid}/node?path=${encodeURIComponent(path)}`,
+    const resp = await this.http.post<{ node: MetaNode }>(
+      `/fs/${targetFsid}/op/read`, { path },
     )
-    return node
+    return resp.node
   }
 
   // ── stat ─────────────────────────────────────────────────────────────────────
@@ -200,18 +201,18 @@ export class SystemRvfsClient implements IRvfsClient {
     if (!this._online) throw new RvfsError('OFFLINE', 'No cached content available', { path })
     try {
       const fsid = await this.resolveFsIdForRead(path)
-      const resp = await this.http.post<{ content: string; encoding: string; size: number }>(
+      const resp = await this.http.post<{ node?: MetaNode; content?: string; encoding?: string; size?: number }>(
         `/fs/${fsid}/op/read`, { path },
       )
+      if (resp.content === undefined || resp.content === null) {
+        throw new RvfsError('EISDIR', 'Is a directory', { path })
+      }
       const content = resp.content
-      // stat to cache the node
-      try {
-        const node = await this.statRaw(path, fsid)
-        if (node.type === 'file' || node.type === 'dir') {
-          this.cache.setNode(node.nid, node)
-          this.pathIndex.set(path, node.nid)
-        }
-      } catch { /* stat failure doesn't prevent caching content */ }
+      // Cache the node if included in response
+      if (resp.node && (resp.node.type === 'file' || resp.node.type === 'dir')) {
+        this.cache.setNode(resp.node.nid, resp.node)
+        this.pathIndex.set(path, resp.node.nid)
+      }
       this.cache.setBlob(contentKey(path), new TextEncoder().encode(content))
       return content
     } catch (err) {
@@ -230,9 +231,19 @@ export class SystemRvfsClient implements IRvfsClient {
     if (!this._online) throw new RvfsError('OFFLINE', 'No cached content available', { path })
     try {
       const fsid = await this.resolveFsIdForRead(path)
-      const resp = await this.http.post<{ content: string; encoding: string; size: number }>(
+      const resp = await this.http.post<{ node?: MetaNode; content?: string; encoding?: string; size?: number; sha256?: string }>(
         `/fs/${fsid}/op/read`, { path },
       )
+      if (resp.content === undefined || resp.content === null) {
+        throw new RvfsError('EISDIR', 'Is a directory', { path })
+      }
+      // W4: Verify blob SHA-256 integrity if server provides hash
+      if (resp.sha256) {
+        const computed = createHash('sha256').update(resp.content).digest('hex')
+        if (computed !== resp.sha256) {
+          throw new RvfsError('EIO', 'Blob integrity check failed', { path })
+        }
+      }
       this.cache.setBlob(contentKey(path), new TextEncoder().encode(resp.content))
       return decodeBinary(resp.content)
     } catch (err) {
@@ -467,21 +478,21 @@ export class SystemRvfsClient implements IRvfsClient {
   async chmod(path: string, mode: number): Promise<void> {
     this.validatePath(path)
     const node = await this.stat(path)
-    await this.http.patch(`/fs/${this.fsid}/node/${node.nid}`, { meta: { mode } })
+    await this.http.patch(`/node/${node.nid}`, { meta: { mode } })
     this.invalidatePathAndNode(path, node.nid)
   }
 
   async chown(path: string, uid: number, gid: number): Promise<void> {
     this.validatePath(path)
     const node = await this.stat(path)
-    await this.http.patch(`/fs/${this.fsid}/node/${node.nid}`, { meta: { uid, gid } })
+    await this.http.patch(`/node/${node.nid}`, { meta: { uid, gid } })
     this.invalidatePathAndNode(path, node.nid)
   }
 
   async utimes(path: string, atime: Date, mtime: Date): Promise<void> {
     this.validatePath(path)
     const node = await this.stat(path)
-    await this.http.patch(`/fs/${this.fsid}/node/${node.nid}`, {
+    await this.http.patch(`/node/${node.nid}`, {
       meta: { atime: atime.toISOString(), mtime: mtime.toISOString() },
     })
     this.invalidatePathAndNode(path, node.nid)
@@ -539,7 +550,7 @@ export class SystemRvfsClient implements IRvfsClient {
       const nids = (dirNode.children ?? []).filter(nid => !this.cache.getNode(nid))
       for (const nid of nids) {
         try {
-          const child = await this.http.get<MetaNode>(`/fs/${this.fsid}/node/${nid}`)
+          const child = await this.http.get<MetaNode>(`/node/${nid}`)
           this.cache.setNode(nid, child)
         } catch { /* skip */ }
       }

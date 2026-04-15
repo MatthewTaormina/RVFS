@@ -11,7 +11,7 @@ The reference implementation of the [RVFS specification](.specs/vfs-remote.md).
 |---------|-------------|--------|
 | [`rvfs/rvfs-types`](rvfs/rvfs-types/) | Shared TypeScript type definitions — no runtime code | Active |
 | [`rvfs/rvfs-server-node`](rvfs/rvfs-server-node/) | Fastify HTTP server (Node.js ≥ 18) | Active |
-| [`rvfs/rvfs-client-node`](rvfs/rvfs-client-node/) | System client with LRU cache + offline WAL (Node.js ≥ 18) | In progress |
+| [`rvfs/rvfs-client-node`](rvfs/rvfs-client-node/) | System client with LRU cache + offline WAL (Node.js ≥ 18) | Active |
 | `rvfs/rvfs-server-python` | Python server implementation | Planned (Phase 2) |
 | `rvfs/rvfs-client-python` | Python client implementation | Planned (Phase 2) |
 | `rvfs/rvfs-client-browser` | Browser client implementation | Planned (Phase 3) |
@@ -79,6 +79,18 @@ Every `package.json` must match this value.
 - Bug fixes → bump **PATCH**
 
 See [`CHANGELOG.md`](CHANGELOG.md) for release history.
+
+## Roadmap
+
+**V1 (0.1.0 — complete):** Node model, filesystem graph, POSIX permissions, sessions, TTL,
+copy-on-write forking (depth 1), full HTTP API, SSE change stream, error model, security.
+360 tests passing (198 server, 162 client).
+
+**V2 (planned):** File/directory locking (§15), presigned links (§16), multi-level fork chains,
+fork merge (§8.4). Stubs currently return `501 Not Implemented`.
+
+**Phase 2:** Python server and client implementations.  
+**Phase 3:** Browser client implementation.
 
 ## Repository Layout
 

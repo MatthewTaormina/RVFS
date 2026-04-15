@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto'
 import type { StorageBackend, MetaNode, RootMetaNode, DirMetaNode, FileMetaNode, BlobHeader, Session } from 'rvfs-types'
 import { RvfsError } from '../errors.js'
+import { assertNodePermission } from '../permissions.js'
 
 export function canonicalizePath(inputPath: string): string {
+  if (inputPath.includes('\0')) {
+    throw new RvfsError('EINVAL', 'Null bytes not allowed in paths', { path: inputPath, status: 400 })
+  }
   const segments = inputPath.split('/')
   for (const seg of segments) {
     if (seg === '..') {
@@ -10,6 +14,11 @@ export function canonicalizePath(inputPath: string): string {
     }
   }
   const cleaned = segments.filter((s) => s !== '' && s !== '.')
+  for (const seg of cleaned) {
+    if (seg.length > 255) {
+      throw new RvfsError('ENAMETOOLONG', 'Path segment exceeds 255 characters', { path: inputPath, status: 400 })
+    }
+  }
   return '/' + cleaned.join('/')
 }
 
@@ -26,9 +35,21 @@ export async function resolvePath(
   for (const seg of segments) {
     if (current.type !== 'root' && current.type !== 'dir') return null
     const nid = (current as RootMetaNode | DirMetaNode).name_index[seg]
-    if (!nid) return null
+    if (!nid) {
+      // B8: CoW read-through — follow fork_of chain to parent FS
+      if (root.fork_of) {
+        return resolvePath(storage, root.fork_of, path)
+      }
+      return null
+    }
     const child = await storage.getMeta(nid)
-    if (!child) return null
+    if (!child) {
+      // B8: node referenced but missing locally — try parent FS
+      if (root.fork_of) {
+        return resolvePath(storage, root.fork_of, path)
+      }
+      return null
+    }
     current = child
   }
   return current
@@ -42,8 +63,11 @@ export interface CreateNodePayload {
   symlink_target?: string
 }
 
-function makeLinuxMeta(overrides?: { mode?: number; uid?: number; gid?: number }) {
+function makeLinuxMeta(nid: string, overrides?: { mode?: number; uid?: number; gid?: number }) {
   const now = new Date().toISOString()
+  // §5 inode = lower 53 bits of SHA-256 of the nid string
+  const inodeHex = createHash('sha256').update(nid).digest('hex')
+  const inode = Number(BigInt('0x' + inodeHex.slice(0, 14)) & BigInt(Number.MAX_SAFE_INTEGER))
   return {
     mode: overrides?.mode ?? 0o644,
     uid: overrides?.uid ?? 1000,
@@ -52,7 +76,7 @@ function makeLinuxMeta(overrides?: { mode?: number; uid?: number; gid?: number }
     mtime: now,
     ctime: now,
     nlink: 1,
-    inode: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
+    inode,
   }
 }
 
@@ -80,6 +104,9 @@ export async function createNodeOp(
   if (name && parentTyped.name_index[name]) {
     throw new RvfsError('EEXIST', 'Path already exists', { path, status: 409 })
   }
+
+  // Q3: check write permission on parent directory
+  assertNodePermission(session, parentNode, 'write')
 
   const now = new Date().toISOString()
   const nid = 'n-' + crypto.randomUUID()
@@ -116,7 +143,7 @@ export async function createNodeOp(
       created_at: now,
       updated_at: now,
       ttl: null,
-      meta: makeLinuxMeta(payload.meta),
+      meta: makeLinuxMeta(nid, payload.meta),
       blob_nid: blobNid,
       size: blobNid ? Buffer.from(payload.content ?? '', 'utf-8').byteLength : 0,
       symlink_target: null,
@@ -132,7 +159,7 @@ export async function createNodeOp(
       created_at: now,
       updated_at: now,
       ttl: null,
-      meta: { ...makeLinuxMeta(payload.meta), mode: payload.meta?.mode ?? 0o755 },
+      meta: { ...makeLinuxMeta(nid, payload.meta), mode: payload.meta?.mode ?? 0o755 },
       children: [],
       name_index: {},
     }
@@ -147,7 +174,7 @@ export async function createNodeOp(
       created_at: now,
       updated_at: now,
       ttl: null,
-      meta: { ...makeLinuxMeta(payload.meta), mode: 0o777 },
+      meta: { ...makeLinuxMeta(nid, payload.meta), mode: 0o777 },
       blob_nid: null,
       size: 0,
       symlink_target: payload.symlink_target ?? null,

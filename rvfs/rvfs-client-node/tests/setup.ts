@@ -351,9 +351,12 @@ export function startMockServer(): Promise<MockServerHandle> {
       }
       const node = resolveNode(fid, path)
       if (!node) return json(res, 404, { error: 'ENOENT', message: 'No such file or directory' })
-      if (node.type !== 'file') return json(res, 400, { error: 'EISDIR', message: 'Is a directory' })
+      if (node.type !== 'file') {
+        // For directories, return node only (no content)
+        return json(res, 200, { node })
+      }
       const content = node.content ?? ''
-      return json(res, 200, { content, encoding: 'utf8', size: Buffer.byteLength(content) })
+      return json(res, 200, { node, content, encoding: 'utf8', size: Buffer.byteLength(content) })
     }
 
     // ── POST /fs/:fsid/op/write ────────────────────────────────────────────
@@ -446,6 +449,33 @@ export function startMockServer(): Promise<MockServerHandle> {
       root.children = [...(root.children ?? []), node.nid]
       root.name_index = { ...root.name_index, [newName]: node.nid }
       return json(res, 200, { nid: node.nid, src, dst })
+    }
+
+    // ── GET /node/:nid ─────────────────────────────────────────────────────
+    const nodeGetDirect = pathname.match(/^\/node\/([^/]+)$/)
+    if (method === 'GET' && nodeGetDirect) {
+      const sess = requireSession(req, res)
+      if (!sess) return
+      const nid = nodeGetDirect[1]
+      const node = nodes.get(nid)
+      if (!node) return json(res, 404, { error: 'ENOENT', message: 'Node not found' })
+      return json(res, 200, node)
+    }
+
+    // ── PATCH /node/:nid ──────────────────────────────────────────────────
+    const nodePatchDirect = pathname.match(/^\/node\/([^/]+)$/)
+    if (method === 'PATCH' && nodePatchDirect) {
+      const sess = requireSession(req, res)
+      if (!sess) return
+      const nid = nodePatchDirect[1]
+      const node = nodes.get(nid)
+      if (!node) return json(res, 404, { error: 'ENOENT', message: 'Node not found' })
+      const body = await readBody(req) as Record<string, unknown>
+      if (body.meta && typeof body.meta === 'object') {
+        node.meta = { ...node.meta, ...(body.meta as Record<string, unknown>) } as NodeRecord['meta']
+      }
+      node.updated_at = new Date().toISOString()
+      return json(res, 200, node)
     }
 
     // ── GET /fs/:fsid/node/:nid ────────────────────────────────────────────

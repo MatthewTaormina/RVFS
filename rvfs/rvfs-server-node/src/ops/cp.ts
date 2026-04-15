@@ -25,16 +25,14 @@ async function copyNode(
 
     if (srcFile.blob_nid) {
       const oldHeader = await storage.getBlobHeader(srcFile.blob_nid)
-      const oldContent = await storage.getBlob(srcFile.blob_nid)
-      if (oldHeader && oldContent) {
-        const newBlobHeader: BlobHeader = {
-          ...oldHeader,
-          nid: 'n-' + crypto.randomUUID(),
-          ref_count: 1,
-          created_at: now,
-        }
-        await storage.putBlob(newBlobHeader, oldContent)
-        newBlobNid = newBlobHeader.nid
+      if (oldHeader) {
+        // W11: share blob via ref_count instead of duplicating
+        const oldContent = await storage.getBlob(srcFile.blob_nid)
+        await storage.putBlob(
+          { ...oldHeader, ref_count: oldHeader.ref_count + 1 },
+          oldContent ?? new ArrayBuffer(0),
+        )
+        newBlobNid = srcFile.blob_nid
       }
     }
 

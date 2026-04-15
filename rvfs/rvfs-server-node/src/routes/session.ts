@@ -2,29 +2,26 @@ import type { FastifyInstance } from 'fastify'
 import type { StorageBackend, Session } from 'rvfs-types'
 import { RvfsError } from '../errors.js'
 import { validateSession } from '../auth.js'
-import { MemoryStorageBackend } from '../storage/memory.js'
+import { validate, CreateSessionSchema, PatchSessionTtlSchema } from '../schemas.js'
 
 export function registerSessionRoutes(app: FastifyInstance, storage: StorageBackend): void {
   app.post('/session', async (request, reply) => {
-    const body = request.body as {
-      identity?: string
-      ttl_seconds?: number
-      filesystems?: Array<{ fsid: string; access: string }>
-      metadata?: Record<string, unknown>
-    }
+    const body = validate(CreateSessionSchema, request.body)
 
-    if (!body.identity || typeof body.ttl_seconds !== 'number') {
-      throw new RvfsError('EINVAL', 'Missing required fields: identity, ttl_seconds', { status: 400 })
+    // B7: cap guest session TTL at 24 hours
+    let ttlSeconds = body.ttl_seconds
+    if (body.identity === 'guest') {
+      ttlSeconds = Math.min(ttlSeconds, 86400)
     }
 
     const now = new Date()
-    const expiresAt = new Date(now.getTime() + body.ttl_seconds * 1000)
+    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000)
     const session: Session = {
       session_id: crypto.randomUUID(),
       identity: body.identity,
       created_at: now.toISOString(),
       expires_at: expiresAt.toISOString(),
-      ttl_seconds: body.ttl_seconds,
+      ttl_seconds: ttlSeconds,
       filesystems: (body.filesystems ?? []) as Session['filesystems'],
       metadata: body.metadata ?? {},
     }
@@ -34,31 +31,37 @@ export function registerSessionRoutes(app: FastifyInstance, storage: StorageBack
   })
 
   app.get('/session/:session_id', async (request, reply) => {
-    const authHeader = request.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new RvfsError('FORBIDDEN', 'Missing or invalid Authorization header', { status: 401 })
-    }
-    const token = authHeader.slice(7)
+    // Q2: validate caller's bearer token first
+    const callerSession = await validateSession(request, storage)
     const { session_id } = request.params as { session_id: string }
 
-    // If the token was revoked, return 401
-    if (storage instanceof MemoryStorageBackend && storage.isRevoked(token)) {
-      throw new RvfsError('FORBIDDEN', 'Session revoked', { status: 401 })
-    }
-
-    const session = await storage.getSession(session_id)
-    if (!session) {
+    const targetSession = await storage.getSession(session_id)
+    if (!targetSession) {
       throw new RvfsError('ENOENT', 'Session not found', { status: 404 })
     }
-    if (new Date(session.expires_at) < new Date()) {
-      throw new RvfsError('FORBIDDEN', 'Session expired', { status: 401 })
+
+    // Q1: IDOR — a session may only read its own record
+    if (targetSession.session_id !== callerSession.session_id) {
+      throw new RvfsError('EACCES', 'Access denied: cannot access another session', { status: 403 })
     }
-    return reply.status(200).send(session)
+
+    return reply.status(200).send(targetSession)
   })
 
   app.delete('/session/:session_id', async (request, reply) => {
-    await validateSession(request, storage)
+    const callerSession = await validateSession(request, storage)
     const { session_id } = request.params as { session_id: string }
+
+    const targetSession = await storage.getSession(session_id)
+    if (!targetSession) {
+      throw new RvfsError('ENOENT', 'Session not found', { status: 404 })
+    }
+
+    // Q1: IDOR — a session may only delete its own record
+    if (targetSession.session_id !== callerSession.session_id) {
+      throw new RvfsError('EACCES', 'Access denied: cannot delete another session', { status: 403 })
+    }
+
     await storage.deleteSession(session_id)
     return reply.status(204).send()
   })
@@ -66,20 +69,25 @@ export function registerSessionRoutes(app: FastifyInstance, storage: StorageBack
   app.patch('/session/:session_id/ttl', async (request, reply) => {
     const callerSession = await validateSession(request, storage)
     const { session_id } = request.params as { session_id: string }
-    const body = request.body as { ttl_seconds?: number }
+    const body = validate(PatchSessionTtlSchema, request.body)
 
     if (typeof body.ttl_seconds !== 'number') {
       throw new RvfsError('EINVAL', 'Missing ttl_seconds', { status: 400 })
     }
 
-    const session = await storage.getSession(session_id)
-    if (!session) {
+    const targetSession = await storage.getSession(session_id)
+    if (!targetSession) {
       throw new RvfsError('ENOENT', 'Session not found', { status: 404 })
+    }
+
+    // Q1: IDOR — a session may only extend its own TTL
+    if (targetSession.session_id !== callerSession.session_id) {
+      throw new RvfsError('EACCES', 'Access denied: cannot modify another session', { status: 403 })
     }
 
     const newExpiresAt = new Date(Date.now() + body.ttl_seconds * 1000)
     const updated: Session = {
-      ...session,
+      ...targetSession,
       expires_at: newExpiresAt.toISOString(),
       ttl_seconds: body.ttl_seconds,
     }

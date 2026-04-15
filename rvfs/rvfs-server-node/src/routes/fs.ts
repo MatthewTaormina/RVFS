@@ -9,6 +9,8 @@ import { rmNodeOp } from '../ops/rm.js'
 import { mvNodeOp } from '../ops/mv.js'
 import { cpNodeOp } from '../ops/cp.js'
 import { bufferEvent } from './watch.js'
+import { setNodeHeaders } from './headers.js'
+import { validate, CreateFsSchema, ForkFsSchema, OpCreateSchema, OpWriteSchema, OpReadSchema, OpMvSchema, OpCpSchema, OpRmSchema } from '../schemas.js'
 
 function emitChange(
   emitter: EventEmitter,
@@ -31,8 +33,9 @@ export function registerFsRoutes(
 ): void {
   app.get('/fs', async (request, reply) => {
     const session = await validateSession(request, storage)
-    const query = request.query as { limit?: string; cursor?: string }
-    const limit = query.limit ? Math.min(parseInt(query.limit, 10), 1000) : 100
+    // B5: default limit=20, max=100 per §9.1
+    const query = request.query as { limit?: string; cursor?: string; owner?: string }
+    const limit = query.limit ? Math.min(parseInt(query.limit, 10), 100) : 20
 
     const items: Array<{
       fsid: string
@@ -46,6 +49,9 @@ export function registerFsRoutes(
     for (const entry of session.filesystems) {
       const root = await storage.getFS(entry.fsid)
       if (!root) continue
+      // W1: optional owner filter (§9.1)
+      // TODO §9.1 owner filter — skip if owner field not in FS schema expansion
+      if (query.owner && root.owner !== query.owner) continue
       items.push({
         fsid: root.fsid,
         label: root.label,
@@ -69,7 +75,7 @@ export function registerFsRoutes(
 
   app.post('/fs', async (request, reply) => {
     const session = await validateSession(request, storage)
-    const body = request.body as { label?: string; ttl?: number | null; owner?: string }
+    const body = validate(CreateFsSchema, request.body)
 
     const now = new Date().toISOString()
     const fsid = 'fs-' + crypto.randomUUID()
@@ -114,6 +120,8 @@ export function registerFsRoutes(
       throw new RvfsError('ENOENT', 'Filesystem not found', { status: 404 })
     }
     assertFsAccess(session, fsid, 'read')
+    // B7: response headers for FS root node
+    setNodeHeaders(reply, root, root)
     return reply.status(200).send(root)
   })
 
@@ -125,13 +133,17 @@ export function registerFsRoutes(
       throw new RvfsError('ENOENT', 'Filesystem not found', { status: 404 })
     }
     assertFsAccess(session, fsid, 'write')
-    const body = request.body as { label?: string }
+    // W2: accept optional ttl field in PATCH body (§9.1)
+    const body = request.body as { label?: string; ttl?: number | null }
     const updated: RootMetaNode = {
       ...root,
       label: body.label ?? root.label,
+      ttl: body.ttl !== undefined ? body.ttl : root.ttl,
       updated_at: new Date().toISOString(),
     }
     await storage.putFS(updated)
+    // B7: response headers
+    setNodeHeaders(reply, updated, updated)
     return reply.status(200).send(updated)
   })
 
@@ -169,7 +181,7 @@ export function registerFsRoutes(
       return reply.status(400).send({ error: 'FORK_DEPTH_EXCEEDED', message: 'V1 fork depth limited to 1' })
     }
 
-    const body = request.body as { label?: string; ttl?: number | null; owner?: string }
+    const body = validate(ForkFsSchema, request.body)
     const now = new Date().toISOString()
     const newFsid = 'fs-' + crypto.randomUUID()
     const rootNid = 'n-' + crypto.randomUUID()
@@ -250,13 +262,7 @@ export function registerFsRoutes(
     if (!root) throw new RvfsError('ENOENT', 'Filesystem not found', { status: 404 })
     assertFsAccess(session, fsid, 'write')
 
-    const body = request.body as {
-      path: string
-      type: 'file' | 'dir' | 'symlink'
-      content?: string
-      meta?: { mode?: number; uid?: number; gid?: number }
-      symlink_target?: string
-    }
+    const body = validate(OpCreateSchema, request.body)
 
     const result = await createNodeOp(storage, session, fsid, body)
 
@@ -280,7 +286,7 @@ export function registerFsRoutes(
     if (!root) throw new RvfsError('ENOENT', 'Filesystem not found', { status: 404 })
     assertFsAccess(session, fsid, 'read')
 
-    const body = request.body as { path: string }
+    const body = validate(OpReadSchema, request.body)
     const result = await readNodeOp(storage, session, fsid, body)
     return reply.status(200).send(result)
   })
@@ -292,12 +298,7 @@ export function registerFsRoutes(
     if (!root) throw new RvfsError('ENOENT', 'Filesystem not found', { status: 404 })
     assertFsAccess(session, fsid, 'write')
 
-    const body = request.body as {
-      path: string
-      content: string
-      create_if_missing?: boolean
-      append?: boolean
-    }
+    const body = validate(OpWriteSchema, request.body)
 
     const resolvedPath = canonicalizePath(body.path)
     const nodeBeforeWrite = await resolvePath(storage, fsid, resolvedPath)
@@ -306,6 +307,7 @@ export function registerFsRoutes(
 
     const nodeAfterWrite = await resolvePath(storage, fsid, resolvedPath)
     const nid = nodeAfterWrite?.nid ?? nodeBeforeWrite?.nid ?? null
+    const size = nodeAfterWrite?.type === 'file' ? (nodeAfterWrite as import('rvfs-types').FileMetaNode).size : 0
 
     emitChange(emitter, fsid, {
       event: 'node:write',
@@ -317,7 +319,7 @@ export function registerFsRoutes(
       meta_delta: null,
     })
 
-    return reply.status(200).send({})
+    return reply.status(200).send({ nid, path: resolvedPath, size })
   })
 
   app.post('/fs/:fsid/op/rm', async (request, reply) => {
@@ -327,7 +329,7 @@ export function registerFsRoutes(
     if (!root) throw new RvfsError('ENOENT', 'Filesystem not found', { status: 404 })
     assertFsAccess(session, fsid, 'write')
 
-    const body = request.body as { path: string; recursive?: boolean }
+    const body = validate(OpRmSchema, request.body)
     const node = await resolvePath(storage, fsid, canonicalizePath(body.path))
     const nid = node?.nid ?? null
 
@@ -353,7 +355,7 @@ export function registerFsRoutes(
     if (!root) throw new RvfsError('ENOENT', 'Filesystem not found', { status: 404 })
     assertFsAccess(session, fsid, 'write')
 
-    const body = request.body as { src: string; dst: string }
+    const body = validate(OpMvSchema, request.body)
     const srcNode = await resolvePath(storage, fsid, canonicalizePath(body.src))
 
     await mvNodeOp(storage, session, fsid, body)
@@ -378,7 +380,7 @@ export function registerFsRoutes(
     if (!root) throw new RvfsError('ENOENT', 'Filesystem not found', { status: 404 })
     assertFsAccess(session, fsid, 'write')
 
-    const body = request.body as { src: string; dst: string; recursive?: boolean }
+    const body = validate(OpCpSchema, request.body)
     await cpNodeOp(storage, session, fsid, body)
 
     return reply.status(200).send({})

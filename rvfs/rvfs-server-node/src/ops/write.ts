@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import type { StorageBackend, MetaNode, FileMetaNode, BlobHeader, Session } from 'rvfs-types'
 import { RvfsError } from '../errors.js'
 import { canonicalizePath, resolvePath, createNodeOp } from './create.js'
+import { assertNodePermission } from '../permissions.js'
 
 export interface WritePayload {
   path: string
@@ -39,6 +40,9 @@ export async function writeNodeOp(
 
   const fileNode = node as FileMetaNode
 
+  // Q3: check write permission on the file node
+  assertNodePermission(session, fileNode, 'write')
+
   let newContent: Buffer
   if (payload.append && fileNode.blob_nid) {
     const existing = await storage.getBlob(fileNode.blob_nid)
@@ -73,7 +77,7 @@ export async function writeNodeOp(
     ttl: null,
     ref_count: 1,
   }
-  const ab = newContent.buffer.slice(newContent.byteOffset, newContent.byteOffset + newContent.byteLength)
+  const ab = newContent.buffer.slice(newContent.byteOffset, newContent.byteOffset + newContent.byteLength) as ArrayBuffer
   await storage.putBlob(blobHeader, ab)
 
   const updatedFile: FileMetaNode = {
@@ -81,6 +85,7 @@ export async function writeNodeOp(
     blob_nid: blobHeader.nid,
     size: newContent.byteLength,
     updated_at: now,
+    meta: { ...fileNode.meta, mtime: now },
   }
   await storage.putMeta(updatedFile)
 }
@@ -90,11 +95,32 @@ export async function readNodeOp(
   session: Session,
   fsid: string,
   payload: ReadPayload,
-): Promise<{ node: MetaNode }> {
+): Promise<{ node: MetaNode; content: string | null; encoding: string | null; size: number }> {
   const path = canonicalizePath(payload.path)
   const node = await resolvePath(storage, fsid, path)
   if (!node) {
     throw new RvfsError('ENOENT', 'Path not found', { path, status: 404 })
   }
-  return { node }
+
+  if (node.type === 'file') {
+    const fileNode = node as FileMetaNode
+    assertNodePermission(session, fileNode, 'read')
+    if (fileNode.blob_nid) {
+      const blob = await storage.getBlob(fileNode.blob_nid)
+      if (blob) {
+        const buf = Buffer.from(blob)
+        const mimeType = (await storage.getBlobHeader(fileNode.blob_nid))?.mime_type ?? ''
+        const isText = mimeType.startsWith('text/') || mimeType.includes('utf-8')
+        return {
+          node,
+          content: isText ? buf.toString('utf-8') : buf.toString('base64'),
+          encoding: isText ? 'utf-8' : 'base64',
+          size: buf.byteLength,
+        }
+      }
+    }
+    return { node, content: '', encoding: 'utf-8', size: 0 }
+  }
+
+  return { node, content: null, encoding: null, size: 0 }
 }

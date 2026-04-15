@@ -133,11 +133,20 @@ describe('GET /session/:session_id', () => {
   })
 
   it('returns 404 for an unknown session_id', async () => {
+    // Create a real session to use as the caller bearer token
+    const callerRes = await app.inject({
+      method: 'POST',
+      url: '/session',
+      payload: { identity: 'user-caller', ttl_seconds: 3600, filesystems: [] },
+    })
+    const { session_id: callerToken } = callerRes.json()
+
+    // Look up a different, non-existent session_id — server returns 404 (before IDOR check)
     const fakeId = crypto.randomUUID()
     const res = await app.inject({
       method: 'GET',
       url: `/session/${fakeId}`,
-      headers: { authorization: `Bearer ${fakeId}` },
+      headers: { authorization: `Bearer ${callerToken}` },
     })
     expect(res.statusCode).toBe(404)
   })

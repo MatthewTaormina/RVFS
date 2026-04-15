@@ -114,6 +114,26 @@ describe('MemoryWal', () => {
     await expect(wal.setStatus('bad-id', 'done')).rejects.toThrow()
   })
 
+  it('setStatus() clears error field when transitioning away from error', async () => {
+    const entry = await wal.append({ fsid: 'fs-001', op: 'write', path: '/clear-err.txt', args: {} })
+    await wal.setStatus(entry.id, 'syncing')
+    await wal.setStatus(entry.id, 'error', 'some failure')
+    await wal.setStatus(entry.id, 'syncing')
+    const updated = await wal.get(entry.id)
+    expect(updated?.error).toBeNull()
+  })
+
+  it('retry is NOT incremented when re-queuing error → pending', async () => {
+    const entry = await wal.append({ fsid: 'fs-001', op: 'write', path: '/requeue.txt', args: {} })
+    await wal.setStatus(entry.id, 'syncing')
+    await wal.setStatus(entry.id, 'error', 'first failure')
+    const afterError = await wal.get(entry.id)
+    expect(afterError?.retry).toBe(1)
+    await wal.setStatus(entry.id, 'pending')
+    const afterRequeue = await wal.get(entry.id)
+    expect(afterRequeue?.retry).toBe(1)
+  })
+
   // ── §12.2 Filter by status ────────────────────────────────────────────────
 
   it('list({ status: "pending" }) returns only pending entries', async () => {
@@ -132,6 +152,41 @@ describe('MemoryWal', () => {
     await wal.append({ fsid: 'fs-B', op: 'write', path: '/b.txt', args: {} })
     const fsA = await wal.list({ fsid: 'fs-A' })
     expect(fsA.every(e => e.fsid === 'fs-A')).toBe(true)
+  })
+
+  it('list({ status: "conflict" }) returns only conflict entries', async () => {
+    const a = await wal.append({ fsid: 'fs-001', op: 'write', path: '/conflict.txt', args: {} })
+    const b = await wal.append({ fsid: 'fs-001', op: 'write', path: '/pending.txt', args: {} })
+    await wal.setStatus(a.id, 'syncing')
+    await wal.setStatus(a.id, 'conflict')
+    const conflicts = await wal.list({ status: 'conflict' })
+    expect(conflicts.every(e => e.status === 'conflict')).toBe(true)
+    expect(conflicts.some(e => e.id === a.id)).toBe(true)
+    expect(conflicts.some(e => e.id === b.id)).toBe(false)
+  })
+
+  it('list({ status: "error" }) returns only error entries', async () => {
+    const a = await wal.append({ fsid: 'fs-001', op: 'write', path: '/error.txt', args: {} })
+    const b = await wal.append({ fsid: 'fs-001', op: 'write', path: '/pending2.txt', args: {} })
+    await wal.setStatus(a.id, 'syncing')
+    await wal.setStatus(a.id, 'error', 'kaboom')
+    const errors = await wal.list({ status: 'error' })
+    expect(errors.every(e => e.status === 'error')).toBe(true)
+    expect(errors.some(e => e.id === a.id)).toBe(true)
+    expect(errors.some(e => e.id === b.id)).toBe(false)
+  })
+
+  it('list({ fsid, status }) combines both filters', async () => {
+    const a = await wal.append({ fsid: 'fs-A', op: 'write', path: '/a-pending.txt', args: {} })
+    const b = await wal.append({ fsid: 'fs-A', op: 'write', path: '/a-done.txt', args: {} })
+    const c = await wal.append({ fsid: 'fs-B', op: 'write', path: '/b-pending.txt', args: {} })
+    await wal.setStatus(b.id, 'syncing')
+    await wal.setStatus(b.id, 'done')
+    const result = await wal.list({ fsid: 'fs-A', status: 'pending' })
+    expect(result.length).toBe(1)
+    expect(result[0].id).toBe(a.id)
+    expect(result.some(e => e.id === b.id)).toBe(false)
+    expect(result.some(e => e.id === c.id)).toBe(false)
   })
 
   // ── §12.1 Discard ─────────────────────────────────────────────────────────
@@ -158,6 +213,22 @@ describe('MemoryWal', () => {
     expect(await wal.get(b.id)).toBeDefined()
   })
 
+  it('clearCompleted() does NOT remove conflict or error entries', async () => {
+    const done = await wal.append({ fsid: 'fs-001', op: 'write', path: '/done.txt', args: {} })
+    const conflict = await wal.append({ fsid: 'fs-001', op: 'write', path: '/conflict.txt', args: {} })
+    const error = await wal.append({ fsid: 'fs-001', op: 'write', path: '/error.txt', args: {} })
+    await wal.setStatus(done.id, 'syncing')
+    await wal.setStatus(done.id, 'done')
+    await wal.setStatus(conflict.id, 'syncing')
+    await wal.setStatus(conflict.id, 'conflict')
+    await wal.setStatus(error.id, 'syncing')
+    await wal.setStatus(error.id, 'error', 'boom')
+    await wal.clearCompleted()
+    expect(await wal.get(done.id)).toBeUndefined()
+    expect(await wal.get(conflict.id)).toBeDefined()
+    expect(await wal.get(error.id)).toBeDefined()
+  })
+
   // ── §12.1 Size ────────────────────────────────────────────────────────────
 
   it('size reflects total number of entries', async () => {
@@ -166,5 +237,22 @@ describe('MemoryWal', () => {
     expect(wal.size).toBe(1)
     await wal.append({ fsid: 'fs-001', op: 'write', path: '/b.txt', args: {} })
     expect(wal.size).toBe(2)
+  })
+
+  it('size decrements after discard()', async () => {
+    const a = await wal.append({ fsid: 'fs-001', op: 'write', path: '/a.txt', args: {} })
+    await wal.append({ fsid: 'fs-001', op: 'write', path: '/b.txt', args: {} })
+    expect(wal.size).toBe(2)
+    await wal.discard(a.id)
+    expect(wal.size).toBe(1)
+  })
+
+  it('size decrements after clearCompleted()', async () => {
+    const a = await wal.append({ fsid: 'fs-001', op: 'write', path: '/a.txt', args: {} })
+    await wal.setStatus(a.id, 'syncing')
+    await wal.setStatus(a.id, 'done')
+    expect(wal.size).toBe(1)
+    await wal.clearCompleted()
+    expect(wal.size).toBe(0)
   })
 })

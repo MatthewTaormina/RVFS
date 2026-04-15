@@ -550,6 +550,7 @@ src/
 ## Test File Map
 
 Tests use [Vitest](https://vitest.dev/) and Fastify's `app.inject()` — no real network required.
+198 tests covering all spec sections §3–14.
 Coverage threshold: **80% lines / functions / branches / statements**.
 
 ```

@@ -33,6 +33,13 @@ export function registerWatchRoutes(
     }
     assertFsAccess(session, fsid, 'read')
 
+    // B8: parse SSE filter params
+    const query = request.query as { since?: string; types?: string; paths?: string }
+    const sinceDate = query.since ? new Date(query.since) : null
+    const typeFilter = query.types ? query.types.split(',').map((t) => t.trim()) : null
+    // paths: simple string-prefix match for V1 (full glob deferred to V2)
+    const pathFilter = query.paths ? query.paths.split(',').map((p) => p.trim()) : null
+
     reply.hijack()
 
     // Register event listener BEFORE writing headers to minimize race window
@@ -40,9 +47,13 @@ export function registerWatchRoutes(
     let streaming = false
 
     const listener = (event: RvfsChangeEvent) => {
+      // B8: filter live events by types and paths
+      if (typeFilter && !typeFilter.includes(event.event)) return
+      if (pathFilter && event.path && !pathFilter.some((p) => event.path!.startsWith(p))) return
       if (streaming) {
         try {
-          reply.raw.write(`event: ${event.event}\ndata: ${JSON.stringify(event)}\n\n`)
+          // B8: write id: field before event:
+          reply.raw.write(`id: ${event.event_id}\nevent: ${event.event}\ndata: ${JSON.stringify(event)}\n\n`)
         } catch {
           // connection closed
         }
@@ -66,12 +77,14 @@ export function registerWatchRoutes(
     // Replay any buffered events and flush pending ones
     streaming = true
     const buffered = recentEvents.get(fsid) ?? []
-    // Send buffered events that aren't already in pendingEvents
-    const pendingIds = new Set(pendingEvents.map(e => e.event_id))
+    const pendingIds = new Set(pendingEvents.map((e) => e.event_id))
     for (const event of buffered) {
+      // B8: filter replayed events by since and types
+      if (sinceDate && new Date(event.at) <= sinceDate) continue
+      if (typeFilter && !typeFilter.includes(event.event)) continue
       if (!pendingIds.has(event.event_id)) {
         try {
-          reply.raw.write(`event: ${event.event}\ndata: ${JSON.stringify(event)}\n\n`)
+          reply.raw.write(`id: ${event.event_id}\nevent: ${event.event}\ndata: ${JSON.stringify(event)}\n\n`)
         } catch {
           break
         }
@@ -79,7 +92,7 @@ export function registerWatchRoutes(
     }
     for (const event of pendingEvents) {
       try {
-        reply.raw.write(`event: ${event.event}\ndata: ${JSON.stringify(event)}\n\n`)
+        reply.raw.write(`id: ${event.event_id}\nevent: ${event.event}\ndata: ${JSON.stringify(event)}\n\n`)
       } catch {
         break
       }

@@ -65,8 +65,8 @@ export class MemoryWal {
     if (status === 'error') {
       entry.error = errorMsg ?? null
       entry.retry++
-    } else if (errorMsg !== undefined) {
-      entry.error = errorMsg
+    } else {
+      entry.error = null
     }
   }
 
@@ -77,12 +77,12 @@ export class MemoryWal {
   }
 
   async clearCompleted(): Promise<void> {
-    for (const [id, entry] of Array.from(this.entries.entries())) {
+    for (const [id, entry] of this.entries) {
       if (entry.status === 'done') {
         this.entries.delete(id)
-        this.order = this.order.filter(x => x !== id)
       }
     }
+    this.order = this.order.filter(id => this.entries.has(id))
   }
 }
 

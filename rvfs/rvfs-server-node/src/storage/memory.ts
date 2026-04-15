@@ -1,4 +1,5 @@
 import type { StorageBackend, MetaNode, RootMetaNode, BlobHeader, Session } from 'rvfs-types'
+import { RvfsError } from 'rvfs-types'
 
 export class MemoryStorageBackend implements StorageBackend {
   private meta = new Map<string, MetaNode>()
@@ -7,6 +8,8 @@ export class MemoryStorageBackend implements StorageBackend {
   private filesystems = new Map<string, RootMetaNode>()
   private sessions = new Map<string, Session>()
   private _revokedSessions = new Set<string>()
+  private fsQuotas = new Map<string, number>() // fsid → quota_bytes
+  private static readonly DEFAULT_QUOTA = 100 * 1024 * 1024 // 100MB default
 
   isRevoked(sessionId: string): boolean {
     return this._revokedSessions.has(sessionId)
@@ -26,7 +29,19 @@ export class MemoryStorageBackend implements StorageBackend {
   async patchMeta(nid: string, patch: Partial<MetaNode>): Promise<MetaNode> {
     const existing = this.meta.get(nid)
     if (!existing) throw new Error(`Node not found: ${nid}`)
-    const updated = { ...existing, ...patch } as MetaNode
+    // B3: deep-merge the nested `meta` (LinuxMeta) field so partial PATCH preserves all fields
+    const existingRecord = existing as unknown as Record<string, unknown>
+    const patchRecord = patch as unknown as Record<string, unknown>
+    const updated = {
+      ...existing,
+      ...patch,
+      updated_at: new Date().toISOString(),
+      ...(patchRecord['meta'] && existingRecord['meta']
+        ? { meta: { ...(existingRecord['meta'] as object), ...(patchRecord['meta'] as object), ctime: new Date().toISOString() } }
+        : existingRecord['meta']
+          ? { meta: { ...(existingRecord['meta'] as object), ctime: new Date().toISOString() } }
+          : {}),
+    } as MetaNode
     await this.putMeta(updated)
     return updated
   }
@@ -44,6 +59,18 @@ export class MemoryStorageBackend implements StorageBackend {
   }
 
   async putBlob(header: BlobHeader, content: ArrayBuffer): Promise<string> {
+    // H3: quota enforcement
+    const quota = this.fsQuotas.get(header.fsid) ?? MemoryStorageBackend.DEFAULT_QUOTA
+    let currentUsage = 0
+    for (const [, h] of this.blobHeaders) {
+      if (h.fsid === header.fsid) currentUsage += h.size
+    }
+    // If updating existing blob, subtract its old size
+    const existingHeader = this.blobHeaders.get(header.nid)
+    if (existingHeader) currentUsage -= existingHeader.size
+    if (currentUsage + content.byteLength > quota) {
+      throw new RvfsError('ENOSPC', 'Filesystem quota exceeded', { status: 507 })
+    }
     this.blobHeaders.set(header.nid, header)
     this.blobs.set(header.nid, content)
     return header.nid
@@ -138,5 +165,17 @@ export class MemoryStorageBackend implements StorageBackend {
 
   listAllFS(): RootMetaNode[] {
     return Array.from(this.filesystems.values())
+  }
+
+  setQuota(fsid: string, bytes: number): void {
+    this.fsQuotas.set(fsid, bytes)
+  }
+
+  getUsage(fsid: string): number {
+    let usage = 0
+    for (const [, h] of this.blobHeaders) {
+      if (h.fsid === fsid) usage += h.size
+    }
+    return usage
   }
 }

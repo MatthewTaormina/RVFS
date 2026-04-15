@@ -1,6 +1,7 @@
 import type { StorageBackend, MetaNode, RootMetaNode, DirMetaNode, FileMetaNode, Session } from 'rvfs-types'
 import { RvfsError } from '../errors.js'
 import { canonicalizePath, resolvePath } from './create.js'
+import { assertNodePermission } from '../permissions.js'
 
 export interface RmPayload {
   path: string
@@ -62,6 +63,8 @@ export async function rmNodeOp(
 
   const parentNode = await resolvePath(storage, fsid, parentPath)
   if (parentNode && (parentNode.type === 'root' || parentNode.type === 'dir')) {
+    // Q3: check write permission on parent directory
+    assertNodePermission(session, parentNode, 'write')
     const parent = parentNode as RootMetaNode | DirMetaNode
     const newNameIndex = { ...parent.name_index }
     delete newNameIndex[name]

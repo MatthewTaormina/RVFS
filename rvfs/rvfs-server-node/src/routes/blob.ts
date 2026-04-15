@@ -40,7 +40,7 @@ export function registerBlobRoutes(app: FastifyInstance, storage: StorageBackend
       ref_count: 0,
     }
 
-    const ab = contentBuf.buffer.slice(contentBuf.byteOffset, contentBuf.byteOffset + contentBuf.byteLength)
+    const ab = contentBuf.buffer.slice(contentBuf.byteOffset, contentBuf.byteOffset + contentBuf.byteLength) as ArrayBuffer
     await storage.putBlob(header, ab)
 
     return reply.status(201).send({

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import type { StorageBackend } from 'rvfs-types'
 import { RvfsError } from '../errors.js'
 import { validateSession } from '../auth.js'
+import { validate, BatchSchema } from '../schemas.js'
 
 interface BatchRequest {
   id: string
@@ -20,20 +21,15 @@ export function registerBatchRoutes(app: FastifyInstance, storage: StorageBacken
   app.post('/batch', async (request, reply) => {
     await validateSession(request, storage)
 
-    const bodyRaw = request.body as { requests?: unknown }
+    const validated = validate(BatchSchema, request.body)
+    const requests = validated.requests as BatchRequest[]
 
-    if (!bodyRaw || typeof bodyRaw !== 'object' || !('requests' in bodyRaw)) {
-      throw new RvfsError('EINVAL', 'Missing requests field', { status: 400 })
-    }
-
-    if (!Array.isArray(bodyRaw.requests)) {
-      throw new RvfsError('EINVAL', 'requests must be an array', { status: 400 })
-    }
-
-    const requests = bodyRaw.requests as BatchRequest[]
-
-    if (requests.length > 100) {
-      throw new RvfsError('EINVAL', 'Batch limit is 100 operations', { status: 400 })
+    // W4: allowlist HTTP methods to prevent unexpected internal routing
+    const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
+    for (const req of requests) {
+      if (!ALLOWED_METHODS.includes(req.method.toUpperCase())) {
+        throw new RvfsError('EINVAL', `Method not allowed in batch: ${req.method}`, { status: 400 })
+      }
     }
 
     const authHeader = request.headers.authorization
@@ -44,16 +40,19 @@ export function registerBatchRoutes(app: FastifyInstance, storage: StorageBacken
         const result = await app.inject({
           method: req.method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD',
           url: req.path,
-          headers: authHeader ? { authorization: authHeader } : {},
-          payload: req.body !== undefined ? req.body : undefined,
+          headers: authHeader ? { authorization: authHeader, 'x-rvfs-internal': 'batch' } : { 'x-rvfs-internal': 'batch' },
+          payload: req.body != null ? (req.body as string | object) : undefined,
         })
         let parsed: unknown
         try {
-          parsed = result.json()
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          parsed = (result as any).json()
         } catch {
-          parsed = result.payload || null
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          parsed = (result as any).payload || null
         }
-        responses.push({ id: req.id, status: result.statusCode, body: parsed })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        responses.push({ id: req.id, status: (result as any).statusCode, body: parsed })
       } catch (err) {
         responses.push({ id: req.id, status: 500, body: { error: 'INTERNAL_ERROR' } })
       }

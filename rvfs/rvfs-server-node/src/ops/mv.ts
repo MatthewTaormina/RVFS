@@ -1,6 +1,7 @@
 import type { StorageBackend, MetaNode, RootMetaNode, DirMetaNode, FileMetaNode, Session } from 'rvfs-types'
 import { RvfsError } from '../errors.js'
 import { canonicalizePath, resolvePath } from './create.js'
+import { assertNodePermission } from '../permissions.js'
 
 export interface MvPayload {
   src: string
@@ -32,10 +33,31 @@ export async function mvNodeOp(
 
   const dstParentTyped = dstParent as RootMetaNode | DirMetaNode
 
+  // Q3: check write permission on the destination parent directory
+  assertNodePermission(session, dstParent, 'write')
+
   const existingDst = dstParentTyped.name_index[dstName]
   if (existingDst) {
     const existing = await storage.getMeta(existingDst)
-    if (existing) await storage.deleteMeta(existing.nid)
+    if (existing) {
+      // B9: decrement blob ref_count if existing dst is a file
+      if (existing.type === 'file') {
+        const fileNode = existing as FileMetaNode
+        if (fileNode.blob_nid) {
+          const blobHeader = await storage.getBlobHeader(fileNode.blob_nid)
+          if (blobHeader) {
+            const newRefCount = blobHeader.ref_count - 1
+            if (newRefCount <= 0) {
+              await storage.deleteBlob(fileNode.blob_nid)
+            } else {
+              const blob = await storage.getBlob(fileNode.blob_nid)
+              await storage.putBlob({ ...blobHeader, ref_count: newRefCount }, blob ?? new ArrayBuffer(0))
+            }
+          }
+        }
+      }
+      await storage.deleteMeta(existing.nid)
+    }
     const newDstNameIndex = { ...dstParentTyped.name_index }
     delete newDstNameIndex[dstName]
     const newDstChildren = dstParentTyped.children.filter((c) => c !== existingDst)

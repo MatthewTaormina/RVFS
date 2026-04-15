@@ -66,7 +66,7 @@ Pre-release packages MUST NOT be published to npm registries as stable.
 ## Scope of "This Package" in changelogs
 
 The changelog is monorepo-wide. When a change affects only one package, prefix the entry:
-- `[server-node]` — affects `packages/rvfs-server-node` only
-- `[client-node]` — affects `packages/rvfs-client-node` only
-- `[types]` — affects `packages/rvfs-types` only
+- `[server-node]` — affects `rvfs/rvfs-server-node` only
+- `[client-node]` — affects `rvfs/rvfs-client-node` only
+- `[types]` — affects `rvfs/rvfs-types` only
 - (no prefix) — affects all packages or a cross-cutting concern

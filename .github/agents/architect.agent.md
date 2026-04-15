@@ -19,7 +19,7 @@ You do not write implementation code, but you write interface definitions, ADRs,
 
 - Translate spec requirements into concrete TypeScript interfaces and module boundaries.
 - Resolve ambiguities in the spec (document the resolution in an ADR).
-- Define the `packages/rvfs-types` content — every shared type flows through you.
+- Define the `rvfs/rvfs-types` content — every shared type flows through you.
 - Decide between implementation approaches when multiple are valid.
 - Establish patterns that Python and browser ports must mirror.
 - Review architecture of any new feature before implementation starts.
@@ -52,7 +52,7 @@ HTTP route → operation handler (ops/) → StorageBackend interface → concret
 - The SSE event bus is an EventEmitter per `fsid` — initialized lazily, garbage-collected when no subscribers remain.
 - Storage backends must be safe for concurrent async calls.
 
-## Types You Own (`packages/rvfs-types/src/`)
+## Types You Own (`rvfs/rvfs-types/src/`)
 
 ```typescript
 // Core node types
@@ -111,7 +111,7 @@ When delivering an architecture decision:
 **Alternatives rejected:** [what you didn't choose and why]
 ```
 
-When delivering type definitions: provide complete, annotated TypeScript ready to copy into `packages/rvfs-types/src/`.
+When delivering type definitions: provide complete, annotated TypeScript ready to copy into `rvfs/rvfs-types/src/`.
 
 ## Constraints
 

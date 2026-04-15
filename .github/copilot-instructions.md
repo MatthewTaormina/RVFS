@@ -14,11 +14,11 @@ semantics, copy-on-write forking, offline WAL sync, and a real-time SSE change s
 
 | Phase | Package | Status |
 |-------|---------|--------|
-| 1 | `packages/rvfs-server-node` | Active development |
-| 1 | `packages/rvfs-client-node` | Active development |
-| 2 | `packages/rvfs-server-python` | Planned |
-| 2 | `packages/rvfs-client-python` | Planned |
-| 3 | `packages/rvfs-client-browser` | Planned |
+| 1 | `rvfs/rvfs-server-node` | Active development |
+| 1 | `rvfs/rvfs-client-node` | Active development |
+| 2 | `rvfs/rvfs-server-python` | Planned |
+| 2 | `rvfs/rvfs-client-python` | Planned |
+| 3 | `rvfs/rvfs-client-browser` | Planned |
 
 All packages implement the **same spec**. The Node packages come first and establish patterns
 that later language ports must mirror faithfully.
@@ -76,7 +76,7 @@ All packages in this monorepo share a **single version number** tracked in the r
 
 ## Key Type Definitions
 
-All shared TypeScript types live in `packages/rvfs-types` (a private package, no runtime code).
+All shared TypeScript types live in `rvfs/rvfs-types` (a private package, no runtime code).
 - `MetaNode` — union of `RootMetaNode | DirMetaNode | FileMetaNode`
 - `BlobHeader` — blob metadata
 - `Session` — session object  
@@ -107,15 +107,15 @@ New team members are created by Morgan (PM) via the Agent Factory.
 |--------|------|-----------|
 | **Morgan** | Project Manager — orchestrates team, tracks progress, handles all git merges | `@pm` |
 | **Jordan** | System Architect — design decisions, TypeScript types, spec interpretation | `@architect` |
-| **Alex** | Server Dev — `packages/rvfs-server-node` implementation | `@server-dev` |
-| **Sam** | Client Dev — `packages/rvfs-client-node` implementation | `@client-dev` |
+| **Alex** | Server Dev — `rvfs/rvfs-server-node` implementation | `@server-dev` |
+| **Sam** | Client Dev — `rvfs/rvfs-client-node` implementation | `@client-dev` |
 | **Casey** | Planner — work breakdown, gap analysis, milestone planning | `@planner` |
 | **Riley** | Docs — README, API docs, usage guides, changelog | `@docs` |
 | **Avery** | QA — test strategy, test code, coverage analysis | `@qa` |
 | **Quinn** | Security — security review, OWASP compliance | `@security` |
 | **Drew** | DX — developer experience, API ergonomics, examples | `@dx` |
 | **Blake** | Reviewer — code quality, spec compliance review | `@reviewer` |
-| **Parker** | MCP Dev — builds and maintains `packages/rvfs-mcp-server` | `@mcp-dev` |
+| **Parker** | MCP Dev — builds and maintains `tools/mcp-server` | `@mcp-dev` |
 | *(factory)* | Agent Factory — creates new named team members (PM only) | internal |
 
 ---

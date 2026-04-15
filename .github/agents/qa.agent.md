@@ -51,7 +51,7 @@ implementation begins.
 ## Test File Conventions
 
 ```
-packages/rvfs-server-node/tests/
+rvfs/rvfs-server-node/tests/
 ├── setup.ts                     # Shared: createTestServer(), createTestSession()
 ├── routes/
 │   ├── fs.test.ts               # /fs routes
@@ -70,7 +70,7 @@ packages/rvfs-server-node/tests/
 └── storage/
     └── memory.test.ts           # In-memory StorageBackend
 
-packages/rvfs-client-node/tests/
+rvfs/rvfs-client-node/tests/
 ├── setup.ts                     # Shared: startLocalServer(), createClient()
 ├── client.test.ts               # IRvfsClient method-by-method
 ├── cache/
@@ -87,7 +87,7 @@ packages/rvfs-client-node/tests/
 ## Test Setup Helpers
 
 ```typescript
-// packages/rvfs-server-node/tests/setup.ts
+// rvfs/rvfs-server-node/tests/setup.ts
 import Fastify from 'fastify'
 import { createServer } from '../src/server.js'
 import { MemoryStorageBackend } from '../src/storage/memory.js'
@@ -181,7 +181,7 @@ This is non-negotiable: **tests come before implementation**.
    Tests MUST be failing at this point — implementation does not exist yet.
 5. **Notify the implementing developer** (e.g., Alex for server, Sam for client) with:
    - Your branch name: `avery/session-api-tests`
-   - Test file paths: `packages/rvfs-server-node/tests/routes/session.test.ts`
+   - Test file paths: `rvfs/rvfs-server-node/tests/routes/session.test.ts`
    - Spec sections covered: `§9.5`
    - Any design assumptions that should be confirmed with Jordan (Architect)
 6. **Developer branches from your test branch**: `git checkout -b alex/session-api avery/session-api-tests`

@@ -17,15 +17,15 @@ a personality and distinct working style. Multiple people can share a role and w
 |--------|--------|------|
 | **Morgan** | `@pm` | Project Manager — orchestrates team, plans releases, handles all git merges |
 | **Jordan** | `@architect` | System Architect — design decisions, TypeScript types, spec interpretation |
-| **Alex** | `@server-dev` | Server Dev — `packages/rvfs-server-node` implementation |
-| **Sam** | `@client-dev` | Client Dev — `packages/rvfs-client-node` implementation |
+| **Alex** | `@server-dev` | Server Dev — `rvfs/rvfs-server-node` implementation |
+| **Sam** | `@client-dev` | Client Dev — `rvfs/rvfs-client-node` implementation |
 | **Casey** | `@planner` | Planner — work breakdown, gap analysis, sprint planning |
 | **Riley** | `@docs` | Docs — README, API docs, changelog, examples |
 | **Avery** | `@qa` | QA — writes failing tests before implementation begins |
 | **Quinn** | `@security` | Security — security review (OWASP, §14 checklist) |
 | **Drew** | `@dx` | DX — API ergonomics, error messages, developer experience |
 | **Blake** | `@reviewer` | Reviewer — code review, spec compliance review |
-| **Parker** | `@mcp-dev` | MCP Dev — builds and maintains `packages/rvfs-mcp-server` |
+| **Parker** | `@mcp-dev` | MCP Dev — builds and maintains `tools/mcp-server` |
 | *(factory)* | (PM only) | Agent Factory — creates new named team members |
 
 New team members are added by Morgan via the Agent Factory. A second Server Dev, a Python Dev,
@@ -45,12 +45,12 @@ When invoked, always:
 
 | Phase | Package | Status |
 |-------|---------|--------|
-| 1 | `packages/rvfs-server-node` | Active development |
-| 1 | `packages/rvfs-client-node` | Active development |
-| 1 | `packages/rvfs-types` | Active development |
-| 2 | `packages/rvfs-server-python` | Planned |
-| 2 | `packages/rvfs-client-python` | Planned |
-| 3 | `packages/rvfs-client-browser` | Planned |
+| 1 | `rvfs/rvfs-server-node` | Active development |
+| 1 | `rvfs/rvfs-client-node` | Active development |
+| 1 | `rvfs/rvfs-types` | Active development |
+| 2 | `rvfs/rvfs-server-python` | Planned |
+| 2 | `rvfs/rvfs-client-python` | Planned |
+| 3 | `rvfs/rvfs-client-browser` | Planned |
 
 ---
 

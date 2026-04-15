@@ -1,6 +1,6 @@
 ---
 description: "RVFS project structure and package conventions. Apply when creating files, adding dependencies, or setting up new packages."
-applyTo: "packages/**"
+applyTo: "{rvfs,tools}/**"
 ---
 
 # RVFS Project Structure
@@ -16,13 +16,15 @@ RVFS/
 │   ├── agents/                # Specialist agent definitions
 │   ├── instructions/          # Context instructions
 │   └── prompts/               # Reusable prompt templates
-├── packages/
+├── rvfs/                      # All RVFS product packages
 │   ├── rvfs-types/            # Shared TypeScript types (no runtime code)
 │   ├── rvfs-server-node/      # Phase 1: Node.js Fastify server
 │   ├── rvfs-client-node/      # Phase 1: Node.js system client
 │   ├── rvfs-server-python/    # Phase 2: Python server (planned)
 │   ├── rvfs-client-python/    # Phase 2: Python client (planned)
 │   └── rvfs-client-browser/   # Phase 3: Browser client (planned)
+├── tools/                     # IDE and developer tooling (not the product)
+│   └── mcp-server/            # MCP server for the agent team
 ├── VERSION                    # Single version for all packages
 ├── CHANGELOG.md
 ├── pnpm-workspace.yaml
@@ -31,7 +33,7 @@ RVFS/
 
 ## Package Conventions (Node)
 
-### `packages/rvfs-types`
+### `rvfs/rvfs-types`
 
 - Private package (`"private": true`)
 - No runtime code — TypeScript `d.ts` types only
@@ -40,7 +42,7 @@ RVFS/
   `CacheStats`, `SyncResult`, `PendingWrite`
 - Entry: `src/index.ts` → compiled to `dist/index.d.ts`
 
-### `packages/rvfs-server-node`
+### `rvfs/rvfs-server-node`
 
 ```
 src/
@@ -72,7 +74,7 @@ tests/
 └── storage/                   # Storage backend tests
 ```
 
-### `packages/rvfs-client-node`
+### `rvfs/rvfs-client-node`
 
 ```
 src/
@@ -113,7 +115,8 @@ Every TypeScript package uses:
 `pnpm-workspace.yaml`:
 ```yaml
 packages:
-  - 'packages/*'
+  - 'rvfs/*'
+  - 'tools/*'
 ```
 
 Internal references use workspace protocol: `"@rvfs/types": "workspace:*"`

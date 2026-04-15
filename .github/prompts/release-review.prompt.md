@@ -13,12 +13,12 @@ The PM must confirm each section passes before bumping version.
 ### 1. Versioning Gate
 
 - [ ] Root `VERSION` file contains `$VERSION`
-- [ ] All `packages/*/package.json` have `"version": "$VERSION"`
+- [ ] All `rvfs/*/package.json` have `"version": "$VERSION"`
 - [ ] `CHANGELOG.md` has an entry for `$VERSION`
 
 Run verification:
 ```
-grep -r '"version"' packages/*/package.json
+grep -r '"version"' rvfs/*/package.json
 cat VERSION
 ```
 
@@ -31,8 +31,8 @@ implemented. Produce a compliance matrix."
 ### 3. Security Review (`@security`)
 
 Invoke `@security` with: "Run a full security review of all auth, session, permission,
-blob integrity, path handling, and rate-limiting code across packages/rvfs-server-node
-and packages/rvfs-client-node. Use the full §14 security checklist."
+blob integrity, path handling, and rate-limiting code across rvfs/rvfs-server-node
+and rvfs/rvfs-client-node. Use the full §14 security checklist."
 
 ### 4. Test Coverage (`@qa`)
 

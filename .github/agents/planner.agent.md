@@ -51,7 +51,7 @@ For each task produce:
 ### Task: [Short name]
 
 **Spec refs:** §X.Y, §X.Z
-**Package:** packages/rvfs-server-node | rvfs-client-node | rvfs-types
+**Package:** rvfs/rvfs-server-node | rvfs-client-node | rvfs-types
 **Agent:** @server-dev | @client-dev | @architect
 **Depends on:** [list of task names that must complete first]
 **Risk:** Low | Medium | High — [reason if Medium/High]

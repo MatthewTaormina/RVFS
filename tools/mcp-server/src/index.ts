@@ -6,6 +6,7 @@ import { registerMemoryTools } from './tools/memory.js'
 import { registerQueueTools } from './tools/queue.js'
 import { registerScratchpadTools } from './tools/scratchpad.js'
 import { registerWbsTools } from './tools/wbs.js'
+import { registerGitTools } from './tools/git.js'
 
 const server = new McpServer({
   name: 'rvfs-mcp',
@@ -18,6 +19,7 @@ registerWbsTools(server)
 registerMemoryTools(server)
 registerScratchpadTools(server)
 registerQueueTools(server)
+registerGitTools(server)
 
 // stdio transport — NEVER write to stdout from here on; use stderr for diagnostics
 const transport = new StdioServerTransport()

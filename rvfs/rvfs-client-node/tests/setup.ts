@@ -149,6 +149,23 @@ export function startMockServer(): Promise<MockServerHandle> {
     return sess
   }
 
+  function resolveParentAndName(fsId: string, path: string): { parent: NodeRecord; name: string } | null {
+    const fs = filesystems.get(fsId)
+    if (!fs) return null
+    const parts = path.replace(/^\//, '').split('/').filter(Boolean)
+    if (parts.length === 0) return null
+    const name = parts[parts.length - 1]
+    if (parts.length === 1) {
+      const root = nodes.get(fs.root_nid)
+      if (!root) return null
+      return { parent: root, name }
+    }
+    const parentPath = '/' + parts.slice(0, -1).join('/')
+    const parent = resolveNode(fsId, parentPath)
+    if (!parent) return null
+    return { parent, name }
+  }
+
   function resolveNode(fsId: string, path: string): NodeRecord | null {
     const parts = path.replace(/^\//, '').split('/').filter(Boolean)
     const fs = filesystems.get(fsId)
@@ -290,33 +307,34 @@ export function startMockServer(): Promise<MockServerHandle> {
       const sess = requireSession(req, res)
       if (!sess) return
       const fid = opCreate[1]
-      const fs = filesystems.get(fid)
-      if (!fs) return json(res, 404, { error: 'NOT_FOUND', message: 'Filesystem not found' })
+      if (!filesystems.get(fid)) return json(res, 404, { error: 'NOT_FOUND', message: 'Filesystem not found' })
       const body = await readBody(req) as Record<string, unknown>
       const path = String(body.path ?? '/')
-      // path traversal rejection
-      if (path.includes('..')) {
-        return json(res, 400, { error: 'EINVAL', message: 'Path traversal not allowed' })
-      }
+      if (path.includes('..')) return json(res, 400, { error: 'EINVAL', message: 'Path traversal not allowed' })
       const nodeType = String(body.type ?? 'file')
-      const parts = path.replace(/^\//, '').split('/').filter(Boolean)
-      const name = parts[parts.length - 1] ?? ''
+      const resolved = resolveParentAndName(fid, path)
+      if (!resolved) return json(res, 404, { error: 'ENOENT', message: 'Parent directory not found' })
+      const { parent, name } = resolved
+      if ((parent.name_index ?? {})[name]) return json(res, 409, { error: 'EEXIST', message: 'Node already exists' })
       const nowStr = new Date().toISOString()
       const nid = `n-${randomUUID()}`
+      const metaOverride = (body.meta as Record<string, unknown> | undefined) ?? {}
+      const mode = nodeType === 'dir' ? (metaOverride.mode as number ?? 0o755) : (metaOverride.mode as number ?? 0o644)
+      const isSymlink = nodeType === 'symlink'
       const newNode: NodeRecord = {
-        nid, type: nodeType as 'file' | 'dir', name,
-        parent_nid: fs.root_nid, fsid: fid,
+        nid, type: isSymlink ? 'file' : nodeType as 'file' | 'dir', name,
+        parent_nid: parent.nid, fsid: fid,
         created_at: nowStr, updated_at: nowStr,
         ttl: (body.ttl as number | null) ?? null,
-        meta: makeMeta({ mode: nodeType === 'dir' ? 0o755 : 0o644 }),
+        meta: makeMeta({ mode }),
         children: nodeType === 'dir' ? [] : undefined,
         name_index: nodeType === 'dir' ? {} : undefined,
-        blob_nid: null, size: 0, symlink_target: null,
+        blob_nid: null, size: 0,
+        symlink_target: isSymlink ? String(body.symlink_target ?? '') : null,
       }
       nodes.set(nid, newNode)
-      const root = nodes.get(fs.root_nid)!
-      root.children = [...(root.children ?? []), nid]
-      root.name_index = { ...(root.name_index ?? {}), [name]: nid }
+      parent.children = [...(parent.children ?? []), nid]
+      parent.name_index = { ...(parent.name_index ?? {}), [name]: nid }
       return json(res, 201, { nid, path })
     }
 
@@ -346,32 +364,32 @@ export function startMockServer(): Promise<MockServerHandle> {
       const fid = opWrite[1]
       const body = await readBody(req) as Record<string, unknown>
       const path = String(body.path ?? '/')
-      if (path.includes('..')) {
-        return json(res, 400, { error: 'EINVAL', message: 'Path traversal not allowed' })
-      }
+      if (path.includes('..')) return json(res, 400, { error: 'EINVAL', message: 'Path traversal not allowed' })
       let node = resolveNode(fid, path)
       const nowStr = new Date().toISOString()
+      // noClobber check
+      if (node && body.no_clobber) return json(res, 409, { error: 'EEXIST', message: 'File already exists (no_clobber)' })
       if (!node) {
-        // create on write
-        const fs = filesystems.get(fid)!
-        const parts = path.replace(/^\//, '').split('/').filter(Boolean)
-        const name = parts[parts.length - 1] ?? ''
+        const resolved = resolveParentAndName(fid, path)
+        if (!resolved) return json(res, 404, { error: 'ENOENT', message: 'Parent directory not found' })
+        const { parent, name } = resolved
+        const mode = (body.mode as number | undefined) ?? 0o644
         const nid = `n-${randomUUID()}`
         node = {
-          nid, type: 'file', name, parent_nid: fs.root_nid,
+          nid, type: 'file', name, parent_nid: parent.nid,
           fsid: fid, created_at: nowStr, updated_at: nowStr, ttl: null,
-          meta: makeMeta({ mode: 0o644 }),
+          meta: makeMeta({ mode }),
           blob_nid: null, size: 0, symlink_target: null,
         }
         nodes.set(nid, node)
-        const root = nodes.get(fs.root_nid)!
-        root.children = [...(root.children ?? []), nid]
-        root.name_index = { ...(root.name_index ?? {}), [name]: nid }
+        parent.children = [...(parent.children ?? []), nid]
+        parent.name_index = { ...(parent.name_index ?? {}), [name]: nid }
       }
       const content = String(body.content ?? '')
       node.content = content
       node.size = Buffer.byteLength(content)
       node.updated_at = nowStr
+      if (body.mode !== undefined) node.meta = { ...node.meta, mode: body.mode as number }
       return json(res, 200, { nid: node.nid, path, size: node.size })
     }
 
@@ -383,17 +401,21 @@ export function startMockServer(): Promise<MockServerHandle> {
       const fid = opRm[1]
       const body = await readBody(req) as Record<string, unknown>
       const path = String(body.path ?? '/')
-      if (path.includes('..')) {
-        return json(res, 400, { error: 'EINVAL', message: 'Path traversal not allowed' })
-      }
+      if (path.includes('..')) return json(res, 400, { error: 'EINVAL', message: 'Path traversal not allowed' })
       const node = resolveNode(fid, path)
       if (!node) return json(res, 404, { error: 'ENOENT', message: 'No such file or directory' })
+      // ENOTEMPTY check
+      if (node.type === 'dir' && (node.children ?? []).length > 0) {
+        return json(res, 400, { error: 'ENOTEMPTY', message: 'Directory not empty' })
+      }
       nodes.delete(node.nid)
-      const fs = filesystems.get(fid)!
-      const root = nodes.get(fs.root_nid)!
-      root.children = (root.children ?? []).filter(nid => nid !== node.nid)
-      const { [node.name]: _, ...rest } = root.name_index ?? {}
-      root.name_index = rest
+      const resolved = resolveParentAndName(fid, path)
+      if (resolved) {
+        const { parent, name } = resolved
+        parent.children = (parent.children ?? []).filter(nid => nid !== node.nid)
+        const { [name]: _, ...rest } = parent.name_index ?? {}
+        parent.name_index = rest
+      }
       return json(res, 200, { deleted: path })
     }
 
@@ -450,6 +472,36 @@ export function startMockServer(): Promise<MockServerHandle> {
       const node = resolveNode(fid, path)
       if (!node) return json(res, 404, { error: 'ENOENT', message: 'Node not found' })
       return json(res, 200, node)
+    }
+
+    // ── PATCH /fs/:fsid/node/:nid ─────────────────────────────────────────
+    const nodePatch = pathname.match(/^\/fs\/([^/]+)\/node\/([^/]+)$/)
+    if (method === 'PATCH' && nodePatch) {
+      const sess = requireSession(req, res)
+      if (!sess) return
+      const nid = nodePatch[2]
+      const node = nodes.get(nid)
+      if (!node) return json(res, 404, { error: 'ENOENT', message: 'Node not found' })
+      const body = await readBody(req) as Record<string, unknown>
+      if (body.meta && typeof body.meta === 'object') {
+        node.meta = { ...node.meta, ...(body.meta as Record<string, unknown>) } as NodeRecord['meta']
+      }
+      node.updated_at = new Date().toISOString()
+      return json(res, 200, node)
+    }
+
+    // ── PATCH /session/:id ────────────────────────────────────────────────
+    const sessionPatch = pathname.match(/^\/session\/([^/]+)$/)
+    if (method === 'PATCH' && sessionPatch) {
+      if (!requireSession(req, res)) return
+      const sid = sessionPatch[1]
+      const sess2 = sessions.get(sid)
+      if (!sess2) return json(res, 404, { error: 'NOT_FOUND', message: 'Session not found' })
+      const body = await readBody(req) as Record<string, unknown>
+      const ttl = Number(body.ttl_seconds ?? 3600)
+      sess2.ttl_seconds = ttl
+      sess2.expires_at = new Date(Date.now() + ttl * 1000).toISOString()
+      return json(res, 200, sess2)
     }
 
     // ── GET /fs/:fsid/watch (SSE) ──────────────────────────────────────────

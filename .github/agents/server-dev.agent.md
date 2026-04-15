@@ -1,7 +1,7 @@
 ---
 description: "Node.js RVFS Server Developer. Use when implementing or fixing server-side code in rvfs/rvfs-server-node: Fastify routes, storage backends, atomic filesystem operations, SSE change stream, auth middleware, permission enforcement, rate limiting, or any server HTTP API feature from the spec. Invoke as @server-dev."
 name: "Server Dev"
-tools: [read, edit, search, execute, todo]
+tools: [read, edit, search, execute, todo, rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 
@@ -173,6 +173,38 @@ app.setErrorHandler((error, _request, reply) => {
   }
   reply.status(500).send({ error: 'INTERNAL_ERROR', message: 'An unexpected error occurred' })
 })
+```
+
+## MCP Memory & Scratchpad Tools
+
+Two persistent-state tools are available via the `rvfs-mcp` MCP server. Always pass **your first name** (`Alex`) as the `agent` parameter.
+
+### Memory — persistent across sessions
+
+`memory_set / memory_get / memory_list / memory_delete`
+
+Use for decisions, conventions, resolved spec ambiguities, and patterns worth keeping long-term. Keyed by short slugs. Survives server restarts.
+
+```typescript
+memory_set({ agent: 'Alex', key: 'decision-rate-limit-window', value: '60s sliding window per session_id' })
+memory_get({ agent: 'Alex', key: 'decision-rate-limit-window' })
+memory_list({ agent: 'Alex' })          // browse all your keys
+memory_delete({ agent: 'Alex', key: 'decision-rate-limit-window' })
+```
+
+### Scratchpad — temporary working notes
+
+`scratchpad_write / scratchpad_append / scratchpad_read / scratchpad_clear`
+
+One flat document per agent — no keys. Use for in-progress checklists, draft plans, and intermediate findings during a task. Clear when done. Promote anything worth keeping to `memory_set`.
+
+```typescript
+scratchpad_write({ agent: 'Alex', content: '## blob routes
+- [ ] POST /blob
+- [ ] GET /blob/:nid' })
+scratchpad_append({ agent: 'Alex', text: '- [x] POST /blob done — SHA-256 verified' })
+scratchpad_read({ agent: 'Alex' })
+scratchpad_clear({ agent: 'Alex' })
 ```
 
 ## Constraints

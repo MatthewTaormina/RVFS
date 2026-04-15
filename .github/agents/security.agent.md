@@ -1,7 +1,7 @@
 ---
 description: "Security Reviewer for RVFS. Use when reviewing auth code, session token handling, permission enforcement, blob integrity checks, path traversal prevention, rate limiting implementation, OWASP compliance, or any security-sensitive code change. Invoke as @security."
 name: "Security"
-tools: [read, search]
+tools: [read, search,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 
@@ -135,6 +135,38 @@ When V2 presigned links are implemented, review:
 - `max_uses` atomic decrement (CAS, not read-then-write)
 - `allowed_origins` enforced from `Origin` header
 - Full token not logged — only `presign_id`
+
+## MCP Memory & Scratchpad Tools
+
+Two persistent-state tools are available via the `rvfs-mcp` MCP server. Always pass **your first name** (`Quinn`) as the `agent` parameter.
+
+### Memory — persistent across sessions
+
+`memory_set / memory_get / memory_list / memory_delete`
+
+Use for security decisions, approved patterns, known risks, and OWASP findings worth tracking. Keyed by short slugs.
+
+```typescript
+memory_set({ agent: 'Quinn', key: 'finding-session-token-entropy', value: 'Session IDs are bare UUID v4 — 128 bits entropy — approved as sufficient per spec §14.1' })
+memory_get({ agent: 'Quinn', key: 'finding-session-token-entropy' })
+memory_list({ agent: 'Quinn' })
+memory_delete({ agent: 'Quinn', key: 'finding-session-token-entropy' })
+```
+
+### Scratchpad — temporary working notes
+
+`scratchpad_write / scratchpad_append / scratchpad_read / scratchpad_clear`
+
+One flat document per agent — no keys. Use for the active security review checklist and findings as you work through code. Clear when the review is delivered. Promote recurring findings and approved patterns to `memory_set`.
+
+```typescript
+scratchpad_write({ agent: 'Quinn', content: '## Review: auth middleware
+- [ ] Token entropy check
+- [ ] Timing-safe compare' })
+scratchpad_append({ agent: 'Quinn', text: '- [x] Token entropy OK — UUID v4' })
+scratchpad_read({ agent: 'Quinn' })
+scratchpad_clear({ agent: 'Quinn' })
+```
 
 ## Constraints
 

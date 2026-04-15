@@ -1,7 +1,7 @@
 ---
 description: "Node.js RVFS Client Developer. Use when implementing or fixing client-side code in rvfs/rvfs-client-node: SystemRvfsClient, IRvfsClient interface, LRU cache, WAL implementation, SSE subscription, offline sync, path resolution, fork support, or any client library feature from the spec. Invoke as @client-dev."
 name: "Client Dev"
-tools: [read, edit, search, execute, todo]
+tools: [read, edit, search, execute, todo,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 
@@ -234,6 +234,38 @@ async prefetch(dir: string, depth = 1): Promise<void> {
     // Recursively prefetch subdirectories
   }
 }
+```
+
+## MCP Memory & Scratchpad Tools
+
+Two persistent-state tools are available via the `rvfs-mcp` MCP server. Always pass **your first name** (`Sam`) as the `agent` parameter.
+
+### Memory — persistent across sessions
+
+`memory_set / memory_get / memory_list / memory_delete`
+
+Use for client design decisions, WAL/cache conventions, and spec edge cases you've resolved. Keyed by short slugs.
+
+```typescript
+memory_set({ agent: 'Sam', key: 'decision-wal-retry-strategy', value: 'Exponential backoff, max 5 retries, then surface RvfsError EOFFLINE' })
+memory_get({ agent: 'Sam', key: 'decision-wal-retry-strategy' })
+memory_list({ agent: 'Sam' })
+memory_delete({ agent: 'Sam', key: 'decision-wal-retry-strategy' })
+```
+
+### Scratchpad — temporary working notes
+
+`scratchpad_write / scratchpad_append / scratchpad_read / scratchpad_clear`
+
+One flat document per agent — no keys. Use for in-progress implementation checklists, open questions, and draft logic. Clear when a feature is committed. Promote lasting decisions to `memory_set`.
+
+```typescript
+scratchpad_write({ agent: 'Sam', content: '## WAL sync
+- [ ] queue write ops offline
+- [ ] replay on reconnect' })
+scratchpad_append({ agent: 'Sam', text: '- [x] queue implemented' })
+scratchpad_read({ agent: 'Sam' })
+scratchpad_clear({ agent: 'Sam' })
 ```
 
 ## Constraints

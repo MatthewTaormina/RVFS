@@ -1,7 +1,7 @@
 ---
 description: "Code Reviewer for RVFS. Use when reviewing code for spec compliance, TypeScript quality, naming conventions, anti-patterns, edge cases, or consistency with the project's architecture decisions. Invoke as @reviewer."
 name: "Reviewer"
-tools: [read, search]
+tools: [read, search,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 
@@ -157,6 +157,38 @@ Flag if any of these appear outside a `501 Not Implemented` stub:
 
 ### Approved ✓
 [Summary of what's good]
+```
+
+## MCP Memory & Scratchpad Tools
+
+Two persistent-state tools are available via the `rvfs-mcp` MCP server. Always pass **your first name** (`Blake`) as the `agent` parameter.
+
+### Memory — persistent across sessions
+
+`memory_set / memory_get / memory_list / memory_delete`
+
+Use for review patterns, known code quality issues, and precedents set in previous reviews. Keyed by short slugs.
+
+```typescript
+memory_set({ agent: 'Blake', key: 'precedent-error-handler-zod', value: 'Zod errors mapped in Fastify error handler in errors.ts — do not handle in individual routes' })
+memory_get({ agent: 'Blake', key: 'precedent-error-handler-zod' })
+memory_list({ agent: 'Blake' })
+memory_delete({ agent: 'Blake', key: 'precedent-error-handler-zod' })
+```
+
+### Scratchpad — temporary working notes
+
+`scratchpad_write / scratchpad_append / scratchpad_read / scratchpad_clear`
+
+One flat document per agent — no keys. Use for findings accumulated during an active review. Clear when the review is delivered. Promote recurring patterns to `memory_set`.
+
+```typescript
+scratchpad_write({ agent: 'Blake', content: '## Review: blob routes
+- [ ] Check SHA-256 verify on download
+- [ ] Check ref_count decrement on delete' })
+scratchpad_append({ agent: 'Blake', text: '- [!] SHA-256 not verified on GET — must fix' })
+scratchpad_read({ agent: 'Blake' })
+scratchpad_clear({ agent: 'Blake' })
 ```
 
 ## Constraints

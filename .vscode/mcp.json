@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "rvfs-mcp": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/packages/rvfs-mcp-server/dist/index.js"]
+    }
+  }
+}

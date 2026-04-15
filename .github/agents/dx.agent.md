@@ -1,7 +1,7 @@
 ---
 description: "Developer Experience (DX) and API Ergonomics engineer for RVFS. Use when reviewing API usability, designing TypeScript types for ergonomics, writing usage examples, creating getting-started guides, reviewing error messages for clarity, improving config options, or ensuring the client library feels intuitive to use. Invoke as @dx."
 name: "DX"
-tools: [read, edit, search,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
+tools: [read, edit, search, rvfs-mcp/git_exec,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 

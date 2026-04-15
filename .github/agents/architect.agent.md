@@ -1,7 +1,7 @@
 ---
 description: "System Architect for RVFS. Use when making technology decisions, designing module interfaces, resolving spec ambiguities, reviewing package API shapes, choosing storage backend patterns, or advising on cross-cutting concerns like error handling and caching strategy. Invoke as @architect."
 name: "Architect"
-tools: [read, search, edit, todo,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
+tools: [read, search, edit, todo, rvfs-mcp/git_exec,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 

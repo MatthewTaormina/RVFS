@@ -1,7 +1,7 @@
 ---
 description: "Documentation Writer for RVFS. Use when writing or updating README files, API reference docs, usage guides, getting-started examples, CHANGELOG entries, JSDoc comments, or any developer-facing documentation for RVFS packages. Invoke as @docs."
 name: "Docs"
-tools: [read, edit, search,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
+tools: [read, edit, search, rvfs-mcp/git_exec,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 

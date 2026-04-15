@@ -1,7 +1,7 @@
 ---
 description: "Node.js RVFS Client Developer. Use when implementing or fixing client-side code in rvfs/rvfs-client-node: SystemRvfsClient, IRvfsClient interface, LRU cache, WAL implementation, SSE subscription, offline sync, path resolution, fork support, or any client library feature from the spec. Invoke as @client-dev."
 name: "Client Dev"
-tools: [read, edit, search, execute, todo,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
+tools: [read, edit, search, execute, todo, rvfs-mcp/git_exec,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 

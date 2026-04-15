@@ -1,7 +1,7 @@
 ---
 description: "Agent Factory — creates new named individual agent files for the RVFS team. Invoked only by Morgan (PM) when a new team member is needed. Not user-invocable."
 name: "Agent Factory"
-tools: [read, edit, search]
+tools: [read, edit, search, rvfs-mcp/git_exec]
 user-invocable: false
 ---
 

@@ -1,7 +1,7 @@
 ---
 description: "QA Engineer and Test Specialist for RVFS. Use when writing test plans, implementing Vitest tests, analysing test coverage, identifying untested spec requirements, writing integration tests for server routes, unit tests for client logic, or setting up test infrastructure. Invoke as @qa."
 name: "QA"
-tools: [read, edit, search, execute, todo,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
+tools: [read, edit, search, execute, todo, rvfs-mcp/git_exec,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 

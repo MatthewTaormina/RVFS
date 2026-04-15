@@ -1,7 +1,7 @@
 ---
 description: "Node.js RVFS Server Developer. Use when implementing or fixing server-side code in rvfs/rvfs-server-node: Fastify routes, storage backends, atomic filesystem operations, SSE change stream, auth middleware, permission enforcement, rate limiting, or any server HTTP API feature from the spec. Invoke as @server-dev."
 name: "Server Dev"
-tools: [read, edit, search, execute, todo, rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
+tools: [read, edit, search, execute, todo, rvfs-mcp/git_exec,rvfs-mcp/memory_set,rvfs-mcp/memory_get,rvfs-mcp/memory_delete,rvfs-mcp/memory_list,rvfs-mcp/scratchpad_append,rvfs-mcp/scratchpad_read,rvfs-mcp/scratchpad_clear,rvfs-mcp/scratchpad_write]
 user-invocable: true
 ---
 
